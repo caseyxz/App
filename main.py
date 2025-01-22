@@ -3,6 +3,9 @@ from tkinter import filedialog
 from PIL import Image
 from logic import load_dataset, run_algorithms_incrementally
 import threading
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+
 
 # Global variables
 X, y = None, None  # Przechowywane dane po załadowaniu
@@ -50,7 +53,7 @@ def submit_process():
     # Automatic transition to "Results" tab
     tabview.set("Result")
 
-    # Uruchom algorytmy w osobnym wątku, aby nie blokować interfejsu
+    # Threading
     def run_algorithms_in_thread():
         results = {}
         for algo_name, result in run_algorithms_incrementally(X, y, selected_algorithms):
@@ -60,15 +63,40 @@ def submit_process():
 
 def display_results(results):
     """
-    Wyświetla wyniki w zakładce Result.
+    Wyświetla wyniki w zakładce Result i rysuje wykres obok wyników.
     """
-    for widget in result_frame.winfo_children():
-        widget.destroy()  # Czyścimy poprzednie wyniki
+    # Czyszczenie widżetów w obu kolumnach
+    for widget in result_text_frame.winfo_children():
+        widget.destroy()
+    for widget in result_chart_frame.winfo_children():
+        widget.destroy()
 
+    # Wyświetlanie wyników tekstowych w lewej kolumnie
     for algo, result in results.items():
-        label = ctk.CTkLabel(master=result_frame, text=f"{algo}: {result}", font=("Helvetica", 14))
-        label.grid(pady=5)  # Zmiana z `pack()` na `grid()`
+        label = ctk.CTkLabel(master=result_text_frame, text=f"{algo}: {result}", font=("Helvetica", 14))
+        label.pack(pady=5, anchor="w")
         print(f"{algo}: {result}")  # Debugowanie w konsoli
+
+    # Przygotowanie danych do wykresu
+    algorithms = list(results.keys())
+    accuracies = [
+        float(result.split(":")[1]) if "Accuracy" in result else 0
+        for result in results.values()
+    ]
+
+    # Tworzenie wykresu
+    fig, ax = plt.subplots(figsize=(5, 4))
+    ax.bar(algorithms, accuracies, color="skyblue")
+    ax.set_title("Porównanie dokładności algorytmów")
+    ax.set_xlabel("Algorytmy")
+    ax.set_ylabel("Dokładność")
+    ax.set_ylim(0, 1)
+    ax.tick_params(axis="x", rotation=45)
+
+    # Osadzanie wykresu w prawej kolumnie
+    canvas = FigureCanvasTkAgg(fig, master=result_chart_frame)
+    canvas.draw()
+    canvas.get_tk_widget().pack(pady=10, fill="both", expand=True)
 
 
 # Main Window
@@ -89,7 +117,7 @@ label_image = ctk.CTkLabel(app, image=image, text="")
 label_image.grid(row=0, column=0, rowspan=2, padx=0, pady=0, sticky="nsew")  
 
 # Gretting text
-label_tabs = ctk.CTkLabel(app, text="Jakiś text, Hello World...", font=("Helvetica", 24),anchor="w")
+label_tabs = ctk.CTkLabel(app, text="Algorithm Testing Tool for Time Series Classification", font=("Helvetica", 24),anchor="w")
 label_tabs.grid(row=0, column=1, padx=10, pady=(10, 0), sticky="w")  
 
 # Tabs 
@@ -153,14 +181,21 @@ submit.grid(row=5, column=0, pady=79)
 # Results Tab
 result_frame = ctk.CTkFrame(tabview.tab("Result"))
 result_frame.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
-
-# Dummy Result Label
-result_label = ctk.CTkLabel(master=result_frame, text="No results yet...", font=("Helvetica", 16))
-result_label.grid()  
+result_frame.grid_columnconfigure(0, weight=1)
+result_frame.grid_columnconfigure(1, weight=2)
 
 # Progress Bar
 progress_bar = ctk.CTkProgressBar(master=result_frame, orientation="horizontal", mode="indeterminate")
-progress_bar.grid(row=1, column=0, padx=10, pady=10, sticky="ew")
+progress_bar.grid(row=0, column=0, columnspan=2, padx=10, pady=10, sticky="ew")
+
+# Teksty wyników w lewej kolumnie
+result_text_frame = ctk.CTkFrame(master=result_frame)
+result_text_frame.grid(row=1, column=0, padx=10, pady=10, sticky="nsew")
+
+# Wykres w prawej kolumnie
+result_chart_frame = ctk.CTkFrame(master=result_frame)
+result_chart_frame.grid(row=1, column=1, padx=10, pady=10, sticky="nsew")
+
 
 # Options Tab
 frame_left3 = ctk.CTkFrame(tabview.tab("Options"))
@@ -177,9 +212,6 @@ appearance_menu = ctk.CTkOptionMenu(
 )
 appearance_menu.grid(row=0, column=0, pady=10)  
 appearance_menu.set("Dark") 
-
-option_menu = ctk.CTkOptionMenu(master=frame_left3, values=["Option 1", "Option 2"])
-option_menu.grid(row=1, column=0, pady=10)
 
 app.mainloop()
 
